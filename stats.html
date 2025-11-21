@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>F1 Insider - Classements Réels</title>
+    <style>
+        :root { --dark-bg: #15151e; --card-bg: #1f1f2b; --text-main: #ffffff; --text-sec: #aeb5bc; --f1-red: #e10600; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--dark-bg); color: var(--text-main); }
+        
+        nav { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background: rgba(21, 21, 30, 0.95); border-bottom: 1px solid #333; position:sticky; top:0; z-index:100; }
+        .logo { font-size: 20px; font-weight: 900; letter-spacing: 1px; color: white; text-decoration: none; } .logo span { color: var(--f1-red); }
+        .nav-links a { color: var(--text-sec); text-decoration: none; margin-left: 20px; font-size: 14px; transition: 0.3s; }
+        .nav-links a:hover { color: white; }
+
+        .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        h1 { text-align: center; text-transform: uppercase; margin-bottom: 10px; }
+        .subtitle { text-align: center; color: var(--text-sec); margin-bottom: 40px; font-style: italic; }
+
+        /* CARTES */
+        .stats-card { background: var(--card-bg); border-radius: 10px; padding: 25px; border: 1px solid #333; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        h2 { margin-top: 0; border-left: 4px solid var(--f1-red); padding-left: 15px; font-size: 1.5em; }
+
+        /* TABLEAUX */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { text-align: left; padding: 12px; color: var(--text-sec); font-size: 0.85em; text-transform: uppercase; border-bottom: 2px solid #444; }
+        td { padding: 15px 12px; border-bottom: 1px solid #2a2a35; font-size: 1em; }
+        tr:hover { background-color: rgba(255,255,255,0.05); }
+        
+        .pos { font-weight: 900; color: var(--text-main); width: 40px; font-size: 1.1em; }
+        .pos-1 { color: #FFD700; } /* Or */
+        .pos-2 { color: #C0C0C0; } /* Argent */
+        .pos-3 { color: #CD7F32; } /* Bronze */
+
+        .driver-name { font-weight: bold; font-size: 1.1em; }
+        .constructor-name { color: var(--text-sec); font-size: 0.9em; margin-left: 10px; }
+        .points-badge { background: #333; padding: 5px 10px; border-radius: 15px; font-weight: bold; float: right; min-width: 40px; text-align: center; }
+        
+        /* Barres constructeurs */
+        .bar-container { width: 100%; background: #333; height: 6px; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+        .bar-fill { height: 100%; background: var(--f1-red); border-radius: 3px; transition: width 1s ease-out; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">F1 <span>INSIDER</span></a>
+        <div class="nav-links">
+            <a href="index.html">Accueil</a>
+            <a href="pilotes.html">Pilotes</a>
+            <a href="equipes.html">Équipes</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Classements Officiels</h1>
+        <p class="subtitle">Données en temps réel via l'API Ergast</p>
+
+        <div class="stats-card">
+            <h2>🏆 Championnat Pilotes</h2>
+            <div id="loading-drivers">Chargement des données officielles...</div>
+            <table id="driver-table" style="display:none;">
+                <thead><tr><th>Pos</th><th>Pilote / Écurie</th><th>Points</th></tr></thead>
+                <tbody id="driver-body"></tbody>
+            </table>
+        </div>
+
+        <div class="stats-card">
+            <h2>🏎️ Championnat Constructeurs</h2>
+            <div id="loading-const">Chargement...</div>
+            <table id="const-table" style="display:none;">
+                <thead><tr><th>Pos</th><th>Équipe</th><th>Points</th></tr></thead>
+                <tbody id="const-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // On utilise l'année 2024 pour voir des vraies données (car 2025 est vide dans l'API réelle)
+        const SEASON = "2025"; 
+        
+        async function chargerClassements() {
+            try {
+                // 1. CHARGER PILOTES
+                const resD = await fetch(`https://api.jolpi.ca/ergast/f1/${SEASON}/driverStandings.json`);
+                const dataD = await resD.json();
+                const drivers = dataD.MRData.StandingsTable.StandingsLists[0].DriverStandings;
+                
+                afficherPilotes(drivers);
+
+                // 2. CHARGER CONSTRUCTEURS
+                const resC = await fetch(`https://api.jolpi.ca/ergast/f1/${SEASON}/constructorStandings.json`);
+                const dataC = await resC.json();
+                const teams = dataC.MRData.StandingsTable.StandingsLists[0].ConstructorStandings;
+
+                afficherConstructeurs(teams);
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('loading-drivers').innerText = "Erreur de connexion à l'API Ergast.";
+            }
+        }
+
+        function afficherPilotes(liste) {
+            document.getElementById('loading-drivers').style.display = 'none';
+            document.getElementById('driver-table').style.display = 'table';
+            const tbody = document.getElementById('driver-body');
+
+            liste.forEach(d => {
+                const posClass = d.position <= 3 ? `pos-${d.position}` : '';
+                
+                const row = `
+                    <tr>
+                        <td class="pos ${posClass}">${d.position}</td>
+                        <td>
+                            <span class="driver-name">${d.Driver.givenName} ${d.Driver.familyName}</span>
+                            <span class="constructor-name">${d.Constructors[0].name}</span>
+                        </td>
+                        <td><div class="points-badge">${d.points}</div></td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        function afficherConstructeurs(liste) {
+            document.getElementById('loading-const').style.display = 'none';
+            document.getElementById('const-table').style.display = 'table';
+            const tbody = document.getElementById('const-body');
+            
+            // Calculer le max pour les barres de pourcentage
+            const maxPoints = parseFloat(liste[0].points);
+
+            liste.forEach(t => {
+                const percent = (t.points / maxPoints) * 100;
+                
+                // Petite logique pour donner des couleurs aux équipes connues
+                let color = "#666";
+                const name = t.Constructor.name.toLowerCase();
+                if(name.includes("red bull")) color = "#0600EF";
+                else if(name.includes("ferrari")) color = "#E80020";
+                else if(name.includes("mclaren")) color = "#FF8000";
+                else if(name.includes("mercedes")) color = "#27F4D2";
+                else if(name.includes("aston")) color = "#229971";
+                else if(name.includes("alpine")) color = "#FF87BC";
+                else if(name.includes("williams")) color = "#64C4FF";
+                else if(name.includes("haas")) color = "#B6BABD";
+                else if(name.includes("sauber") || name.includes("audi")) color = "#52E252";
+                else if(name.includes("vcarb")) color = "#6692FF";
+
+                const row = `
+                    <tr>
+                        <td class="pos">${t.position}</td>
+                        <td>
+                            <div style="font-weight:bold; font-size:1.1em;">${t.Constructor.name}</div>
+                            <div class="bar-container">
+                                <div class="bar-fill" style="width:${percent}%; background-color:${color}"></div>
+                            </div>
+                        </td>
+                        <td style="vertical-align:middle"><div class="points-badge">${t.points}</div></td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        // Lancer le chargement
+        chargerClassements();
+    </script>
+</body>
+</html>

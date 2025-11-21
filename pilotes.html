@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>F1 Insider - Pilotes 2025</title>
+    <style>
+        :root { --dark-bg: #15151e; --card-bg: #1f1f2b; --text-main: #ffffff; --text-sec: #aeb5bc; --f1-red: #e10600; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--dark-bg); color: var(--text-main); }
+        
+        /* NAV */
+        nav { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background: rgba(21, 21, 30, 0.95); border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 100; }
+        .logo { font-size: 20px; font-weight: 900; letter-spacing: 1px; color: white; text-decoration: none; }
+        .logo span { color: var(--f1-red); }
+        .nav-links a { color: var(--text-sec); text-decoration: none; margin-left: 20px; font-size: 14px; transition: 0.3s; }
+        .nav-links a:hover { color: white; }
+
+        .container { max-width: 1100px; margin: 40px auto; padding: 0 20px; }
+        h1 { text-align: center; text-transform: uppercase; border-bottom: 4px solid var(--f1-red); display: inline-block; position: relative; left: 50%; transform: translateX(-50%); margin-bottom: 40px; }
+
+        /* GRILLE PILOTES */
+        .drivers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; }
+        
+        .driver-card {
+            background: var(--card-bg); border-radius: 12px; overflow: hidden; position: relative;
+            transition: transform 0.3s; border: 1px solid #333;
+        }
+        .driver-card:hover { transform: translateY(-5px); border-color: white; }
+        
+        .team-strip { height: 6px; width: 100%; }
+        
+        .driver-body { padding: 20px; text-align: center; position: relative; }
+        .driver-number { font-size: 3.5em; font-weight: 900; color: rgba(255,255,255,0.05); position: absolute; top: 0; right: 10px; line-height: 1; }
+        .driver-name { font-size: 1.4em; font-weight: bold; margin-top: 15px; line-height: 1.2; }
+        .driver-lastname { text-transform: uppercase; font-weight: 900; }
+        .driver-team { color: var(--text-sec); font-size: 0.9em; margin-top: 5px; }
+        .flag { font-size: 1.2em; margin-bottom: 5px; display: block; }
+        
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">F1 <span>INSIDER</span></a>
+        <div class="nav-links">
+            <a href="index.html">Accueil</a>
+            <a href="equipes.html">Équipes</a>
+            <a href="stats.html">Stats</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Grille 2025</h1>
+        <div id="grid-container" class="drivers-grid"></div>
+    </div>
+
+    <script>
+        // DONNÉES PILOTES 2025 (Simulées pour l'affichage)
+        const drivers2025 = [
+            { num: 1, first: "Max", last: "Verstappen", team: "Red Bull Racing", color: "#0600EF", flag: "🇳🇱" },
+            { num: 4, first: "Lando", last: "Norris", team: "McLaren", color: "#FF8000", flag: "🇬🇧" },
+            { num: 16, first: "Charles", last: "Leclerc", team: "Ferrari", color: "#E80020", flag: "🇲🇨" },
+            { num: 44, first: "Lewis", last: "Hamilton", team: "Ferrari", color: "#E80020", flag: "🇬🇧" },
+            { num: 63, first: "George", last: "Russell", team: "Mercedes", color: "#27F4D2", flag: "🇬🇧" },
+            { num: 12, first: "Kimi", last: "Antonelli", team: "Mercedes", color: "#27F4D2", flag: "🇮🇹" },
+            { num: 81, first: "Oscar", last: "Piastri", team: "McLaren", color: "#FF8000", flag: "🇦🇺" },
+            { num: 14, first: "Fernando", last: "Alonso", team: "Aston Martin", color: "#229971", flag: "🇪🇸" },
+            { num: 18, first: "Lance", last: "Stroll", team: "Aston Martin", color: "#229971", flag: "🇨🇦" },
+            { num: 10, first: "Pierre", last: "Gasly", team: "Alpine", color: "#FF87BC", flag: "🇫🇷" },
+            { num: 7, first: "Jack", last: "Doohan", team: "Alpine", color: "#FF87BC", flag: "🇦🇺" },
+            { num: 23, first: "Alex", last: "Albon", team: "Williams", color: "#64C4FF", flag: "🇹🇭" },
+            { num: 55, first: "Carlos", last: "Sainz", team: "Williams", color: "#64C4FF", flag: "🇪🇸" },
+            { num: 27, first: "Nico", last: "Hulkenberg", team: "Kick Sauber", color: "#52E252", flag: "🇩🇪" },
+            { num: 30, first: "Gabriel", last: "Bortoleto", team: "Kick Sauber", color: "#52E252", flag: "🇧🇷" },
+            { num: 31, first: "Esteban", last: "Ocon", team: "Haas", color: "#B6BABD", flag: "🇫🇷" },
+            { num: 87, first: "Oliver", last: "Bearman", team: "Haas", color: "#B6BABD", flag: "🇬🇧" },
+            { num: 22, first: "Yuki", last: "Tsunoda", team: "VCARB", color: "#6692FF", flag: "🇯🇵" },
+            { num: 30, first: "Liam", last: "Lawson", team: "Red Bull Racing", color: "#0600EF", flag: "🇳🇿" },
+            { num: 5, first: "Isack", last: "Hadjar", team: "VCARB", color: "#6692FF", flag: "🇫🇷" }
+        ];
+
+        const container = document.getElementById('grid-container');
+
+        drivers2025.forEach(d => {
+            const html = `
+                <div class="driver-card">
+                    <div class="team-strip" style="background-color: ${d.color}"></div>
+                    <div class="driver-body">
+                        <div class="driver-number">${d.num}</div>
+                        <span class="flag">${d.flag}</span>
+                        <div class="driver-name">
+                            ${d.first}<br>
+                            <span class="driver-lastname">${d.last}</span>
+                        </div>
+                        <div class="driver-team">${d.team}</div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += html;
+        });
+    </script>
+</body>
+</html>
