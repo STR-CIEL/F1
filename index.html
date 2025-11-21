@@ -81,6 +81,7 @@
         <div class="card"><h3>� drivers</h3><p>Infos pilotes.</p><a href="pilotes.html" class="btn-small">Voir</a></div>
         <div class="card"><h3>🏎️ Équipes</h3><p>Infos équipes.</p><a href="equipes.html" class="btn-small">Voir</a></div>
         <div class="card"><h3>🌐 Statistiques</h3><p>Données et records.</p><a href="stats.html" class="btn-small">Voir</a></div>
+        <div class="card"><h3>Watch Live</h3><p>Live</p><a href="https://www.yacine-tv.com/yacine-4/" class="btn-small">Voir</a></div>
     </section>
 
     <script src="f1data.js"></script>
@@ -100,6 +101,7 @@
                 const start = new Date(s.date_start);
                 const end = new Date(s.date_end);
                 return maintenant >= start && maintenant <= end;
+                
             });
 
             // 2. Chercher la PROCHAINE session (Start > Maintenant)
@@ -129,7 +131,7 @@
                 document.getElementById('race-name').innerText = `GP ${prochaineSession.country_name}`;
                 document.getElementById('race-location').innerText = `${prochaineSession.circuit_short_name} - ${prochaineSession.session_name}`;
                 
-                const dateObj = new Date(prochaineSession.date_start);
+                const dateObj = new Date(prochaineSession.date_start );
                 const options = { weekday: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit', timeZone: 'Europe/Paris' };
                 document.getElementById('race-date').innerText = dateObj.toLocaleDateString('fr-FR', options);
             } else {
