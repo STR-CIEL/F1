@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Insider - Calendrier 2025</title>
+    <style>
+        /* --- THEME DARK --- */
+        :root { --f1-red: #e10600; --dark-bg: #15151e; --card-bg: #1f1f2b; --text-main: #ffffff; --text-sec: #aeb5bc; --border-color: #333; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--dark-bg); color: var(--text-main); }
+        nav { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background: rgba(21, 21, 30, 0.95); border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 100; }
+        .logo { font-size: 20px; font-weight: 900; letter-spacing: 1px; color: white; text-decoration: none; }
+        .logo span { color: var(--f1-red); }
+        .nav-links a { color: var(--text-sec); text-decoration: none; margin-left: 20px; font-size: 14px; transition: 0.3s; }
+        .nav-links a:hover { color: white; }
+        .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        h1 { text-align: center; text-transform: uppercase; margin-bottom: 40px; border-bottom: 4px solid var(--f1-red); display: inline-block; position: relative; left: 50%; transform: translateX(-50%); }
+        
+        .race-card { background: var(--card-bg); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border-color); transition: 0.3s; display: flex; flex-wrap: wrap; align-items: center; }
+        .card-header { display: flex; width: 100%; align-items: center; justify-content: space-between; }
+        .race-date { text-align: center; min-width: 70px; padding-right: 20px; border-right: 1px solid #444; }
+        .day { font-size: 1.5em; font-weight: bold; line-height: 1; }
+        .month { text-transform: uppercase; color: var(--f1-red); font-weight: bold; font-size: 0.8em; }
+        .race-info { flex: 1; padding-left: 20px; }
+        .race-title { font-size: 1.3em; font-weight: bold; }
+        .circuit-name { color: var(--text-sec); font-size: 0.9em; }
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 0.85em; font-weight: bold; background:#333; }
+        
+        /* Session Details */
+        .sessions-list { width: 100%; margin-top: 15px; padding-top: 15px; border-top: 1px solid #333; display: none; }
+        .race-card.expanded .sessions-list { display: block; }
+        .session-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.9em; color: #ccc; border-bottom: 1px solid #2a2a35; }
+        .session-row:last-child { border-bottom: none; }
+        .session-row.live { color: var(--f1-red); font-weight: bold; animation: pulse 2s infinite; }
+        
+        .race-card.live { border: 2px solid var(--f1-red); }
+        .race-card.next { border-left: 5px solid var(--f1-red); background-color: #252533; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">F1 <span>INSIDER</span></a>
+        <div class="nav-links"><a href="index.html">Accueil</a><a href="tours.html">Temps</a><a href="tracker.html">Tracker</a></div>
+    </nav>
+
+    <div class="container">
+        <h1>Saison 2025</h1>
+        <div id="calendar-container"></div>
+    </div>
+
+    <script src="f1data.js"></script>
+
+    <script>
+        const timeZone = 'Europe/Paris';
+        
+        // Fonction de groupement par Meeting Key
+        function groupSessionsByMeeting(data) {
+            const groups = {};
+            data.forEach(session => {
+                if (!groups[session.meeting_key]) {
+                    groups[session.meeting_key] = {
+                        name: session.location,
+                        country: session.country_name,
+                        circuit: session.circuit_short_name,
+                        sessions: []
+                    };
+                }
+                groups[session.meeting_key].sessions.push(session);
+            });
+            return Object.values(groups);
+        }
+
+        function genererCalendrier() {
+            const container = document.getElementById('calendar-container');
+            container.innerHTML = ""; // Nettoyer l'affichage
+            const maintenant = new Date();
+
+            const meetings = groupSessionsByMeeting(f1Data);
+            
+            // --- IMPORTANT : TRIER LES GRANDS PRIX PAR DATE ---
+            // Cela garantit que Miami est avant Las Vegas, peu importe l'ordre dans le fichier
+            meetings.sort((a, b) => new Date(a.sessions[0].date_start) - new Date(b.sessions[0].date_start));
+            // --------------------------------------------------
+
+            let nextFound = false;
+
+            meetings.forEach(meeting => {
+                // Trier les sessions à l'intérieur du week-end
+                meeting.sessions.sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
+                
+                const firstSession = new Date(meeting.sessions[0].date_start);
+                const lastSession = new Date(meeting.sessions[meeting.sessions.length - 1].date_end);
+                
+                // Récupérer la date de la COURSE (la dernière session généralement) pour l'affichage
+                const mainDate = new Date(meeting.sessions[meeting.sessions.length - 1].date_start);
+                const jour = mainDate.toLocaleDateString('fr-FR', {day:'numeric', timeZone});
+                const mois = mainDate.toLocaleDateString('fr-FR', {month:'short', timeZone}).toUpperCase().replace('.','');
+
+                let statusClass = "future";
+                let badgeText = "À venir";
+                let showDetails = false;
+                let activeSessionName = "";
+
+                // Logique d'état
+                if (maintenant > lastSession) {
+                    statusClass = "past";
+                    badgeText = "Terminé";
+                } else if (maintenant >= firstSession && maintenant <= lastSession) {
+                    statusClass = "live";
+                    badgeText = "WEEK-END EN COURS";
+                    showDetails = true;
+                    nextFound = true;
+                } else if (!nextFound) {
+                    statusClass = "next";
+                    badgeText = "PROCHAIN";
+                    showDetails = true;
+                    nextFound = true;
+                }
+
+                // Création HTML
+                let sessionsHTML = "";
+                if (showDetails) {
+                    sessionsHTML = `<div class="sessions-list">`;
+                    meeting.sessions.forEach(sess => {
+                        const start = new Date(sess.date_start);
+                        const end = new Date(sess.date_end);
+                        const isLive = maintenant >= start && maintenant <= end;
+                        
+                        if (isLive) {
+                            activeSessionName = sess.session_name;
+                            badgeText = "🔴 " + sess.session_name;
+                        }
+
+                        const timeStr = start.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', timeZone});
+                        const dayStr = start.toLocaleDateString('fr-FR', {weekday:'short', timeZone});
+
+                        sessionsHTML += `
+                            <div class="session-row ${isLive ? 'live' : ''}">
+                                <span>${sess.session_name}</span>
+                                <span>${dayStr} ${timeStr}</span>
+                            </div>
+                        `;
+                    });
+                    sessionsHTML += `</div>`;
+                }
+
+                const html = `
+                    <div class="race-card ${statusClass} ${showDetails ? 'expanded' : ''}">
+                        <div class="card-header">
+                            <div class="race-date">
+                                <div class="day">${jour}</div>
+                                <div class="month">${mois}</div>
+                            </div>
+                            <div class="race-info">
+                                <div class="race-title">GP ${meeting.country}</div>
+                                <div class="circuit-name">📍 ${meeting.circuit}</div>
+                            </div>
+                            <div class="status-badge" style="${activeSessionName ? 'background:var(--f1-red)' : ''}">
+                                ${badgeText}
+                            </div>
+                        </div>
+                        ${sessionsHTML}
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+        }
+        genererCalendrier();
+    </script>
+</body>
+</html>

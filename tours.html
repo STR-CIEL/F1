@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Insider - Chronos</title>
+    <style>
+        :root { --f1-red: #e10600; --dark-bg: #15151e; --card-bg: #1f1f2b; --text-main: #ffffff; --text-sec: #aeb5bc; --border-color: #333; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--dark-bg); color: var(--text-main); }
+        nav { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background: rgba(21, 21, 30, 0.95); border-bottom: 1px solid var(--border-color); }
+        .logo { font-size: 20px; font-weight: 900; letter-spacing: 1px; color: white; text-decoration: none; }
+        .logo span { color: var(--f1-red); }
+        .nav-links a { color: var(--text-sec); text-decoration: none; margin-left: 20px; font-size: 14px; transition: 0.3s; }
+        .nav-links a:hover { color: white; }
+        .container { max-width: 1000px; margin: 30px auto; padding: 0 20px; }
+        .controls { background: var(--card-bg); padding: 25px; border-radius: 10px; display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; border: 1px solid var(--border-color); }
+        .input-group { flex: 1; min-width: 200px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: var(--text-sec); font-size: 0.8em; text-transform: uppercase; }
+        select { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid var(--border-color); background-color: #15151e; color: white; font-size: 14px; }
+        button { background-color: var(--f1-red); color: white; border: none; padding: 10px 25px; font-size: 14px; border-radius: 5px; cursor: pointer; font-weight: bold; height: 40px; }
+        button:disabled { background-color: #444; cursor: not-allowed; }
+        .results-area { margin-top: 40px; background: var(--card-bg); border-radius: 10px; overflow: hidden; display: none; border: 1px solid var(--border-color); }
+        table { width: 100%; border-collapse: collapse; }
+        thead { background-color: #2b2b3d; border-bottom: 2px solid var(--f1-red); }
+        th { padding: 15px; text-align: center; color: var(--text-sec); font-size: 0.85em; text-transform: uppercase; }
+        td { padding: 15px; text-align: center; border-bottom: 1px solid #333; }
+        .chrono { font-family: 'Courier New', monospace; font-weight: bold; color: white; font-size: 1.2em; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">F1 <span>INSIDER</span></a>
+        <div class="nav-links"><a href="index.html">Accueil</a><a href="tours.html">Temps</a><a href="tracker.html">Tracker</a></div>
+    </nav>
+
+    <div class="container">
+        <h1>⏱️ Analyse des Chronos</h1>
+        <div class="controls">
+            <div class="input-group">
+                <label>1. Grand Prix</label>
+                <select id="select-race" onchange="updateSessions()"><option value="">-- Choisir --</option></select>
+            </div>
+            <div class="input-group">
+                <label>2. Séance</label>
+                <select id="select-session" onchange="chargerPilotes()" disabled><option>-- Choisir GP --</option></select>
+            </div>
+            <div class="input-group">
+                <label>3. Pilote</label>
+                <select id="select-driver" disabled><option>-- Pilote --</option></select>
+            </div>
+            <button onclick="afficherLesTemps()" id="btn-voir" disabled>VOIR</button>
+        </div>
+
+        <div id="resultats" class="results-area">
+            <table id="table-data">
+                <thead><tr><th>Tr</th><th>Temps</th><th>S1</th><th>S2</th><th>S3</th></tr></thead>
+                <tbody id="tbody-laps"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="f1data.js"></script>
+    <script>
+        function formatTemps(s) { if(!s) return '-'; const m=Math.floor(s/60); let sc=(s%60).toFixed(3); if(sc<10) sc='0'+sc; return m>0?`${m}:${sc}`:sc; }
+
+        window.onload = function() {
+            const raceSelect = document.getElementById('select-race');
+            const meetings = [...new Set(f1Data.map(item => item.meeting_key))]; // Clés uniques
+            
+            meetings.forEach(key => {
+                // Trouver le premier élément pour avoir le nom du pays
+                const info = f1Data.find(d => d.meeting_key === key);
+                let opt = document.createElement('option');
+                opt.value = key;
+                opt.text = info.country_name;
+                raceSelect.appendChild(opt);
+            });
+        };
+
+        function updateSessions() {
+            const meetingKey = parseInt(document.getElementById('select-race').value);
+            const sessionSelect = document.getElementById('select-session');
+            
+            sessionSelect.innerHTML = '<option value="">-- Choisir Séance --</option>';
+            sessionSelect.disabled = true;
+            document.getElementById('select-driver').disabled = true;
+
+            if (!meetingKey) return;
+
+            // Filtrer les sessions pour ce GP
+            const sessions = f1Data.filter(d => d.meeting_key === meetingKey);
+            
+            sessions.forEach(s => {
+                let opt = document.createElement('option');
+                opt.value = s.session_key;
+                opt.text = s.session_name;
+                sessionSelect.appendChild(opt);
+            });
+            sessionSelect.disabled = false;
+        }
+
+        async function chargerPilotes() {
+            const key = document.getElementById('select-session').value;
+            const drvSelect = document.getElementById('select-driver');
+            const btn = document.getElementById('btn-voir');
+
+            if (!key) { drvSelect.disabled = true; return; }
+            
+            drvSelect.disabled = false;
+            drvSelect.innerHTML = '<option>Chargement...</option>';
+            
+            try {
+                const res = await fetch(`https://api.openf1.org/v1/drivers?session_key=${key}`);
+                const drivers = await res.json();
+                
+                drvSelect.innerHTML = '<option value="">-- Pilote --</option>';
+                drivers.sort((a, b) => a.driver_number - b.driver_number);
+                
+                if(drivers.length === 0) drvSelect.innerHTML = '<option>Aucune donnée pilote</option>';
+
+                drivers.forEach(d => {
+                    let opt = document.createElement('option');
+                    opt.value = d.driver_number;
+                    opt.text = `#${d.driver_number} - ${d.name_acronym}`; 
+                    drvSelect.appendChild(opt);
+                });
+                
+                drvSelect.onchange = () => btn.disabled = (drvSelect.value === "");
+            } catch(e) { drvSelect.innerHTML = "<option>Erreur API</option>"; }
+        }
+
+        async function afficherLesTemps() {
+            const key = document.getElementById('select-session').value;
+            const num = document.getElementById('select-driver').value;
+            const tbody = document.getElementById('tbody-laps');
+            
+            document.getElementById('resultats').style.display = 'block';
+            tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;">Chargement...</td></tr>';
+
+            try {
+                const res = await fetch(`https://api.openf1.org/v1/laps?session_key=${key}&driver_number=${num}`);
+                const laps = await res.json();
+                tbody.innerHTML = '';
+                if(laps.length === 0) { tbody.innerHTML = '<tr><td colspan="5">Aucun temps enregistré</td></tr>'; return; }
+
+                laps.forEach(t => {
+                    if (t.lap_duration) {
+                        tbody.innerHTML += `<tr>
+                            <td style="color:var(--f1-red); font-weight:bold;">${t.lap_number}</td>
+                            <td class="chrono">${formatTemps(t.lap_duration)}</td>
+                            <td>${t.duration_sector_1||'-'}</td><td>${t.duration_sector_2||'-'}</td><td>${t.duration_sector_3||'-'}</td>
+                        </tr>`;
+                    }
+                });
+            } catch(e) { tbody.innerHTML = '<tr><td colspan="5">Erreur de chargement</td></tr>'; }
+        }
+    </script>
+</body>
+</html>

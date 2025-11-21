@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>F1 Insider - Tracker GPS</title>
+    <style>
+        :root { --f1-red: #e10600; --dark-bg: #15151e; --card-bg: #1f1f2b; --text-main: #ffffff; --text-sec: #aeb5bc; --border-color: #333; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--dark-bg); color: var(--text-main); }
+        nav { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background: rgba(21, 21, 30, 0.95); border-bottom: 1px solid var(--border-color); }
+        .logo { font-size: 20px; font-weight: 900; letter-spacing: 1px; color: white; text-decoration: none; }
+        .logo span { color: var(--f1-red); }
+        .nav-links a { color: var(--text-sec); text-decoration: none; margin-left: 20px; font-size: 14px; transition: 0.3s; }
+        .nav-links a:hover { color: white; }
+        .container { max-width: 1000px; margin: 30px auto; padding: 0 20px; text-align: center; }
+        .controls { background: var(--card-bg); padding: 20px; border-radius: 10px; display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; border: 1px solid var(--border-color); }
+        select { padding: 10px; border-radius: 5px; background: #15151e; color: white; border: 1px solid var(--border-color); }
+        button { padding: 10px 20px; background: var(--f1-red); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        .map-container { position: relative; width: 100%; max-width: 800px; height: 600px; margin: 0 auto; background: #1a1a24; border: 2px solid var(--border-color); border-radius: 15px; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        canvas { display: block; width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">F1 <span>INSIDER</span></a>
+        <div class="nav-links"><a href="index.html">Accueil</a><a href="tours.html">Temps</a><a href="tracker.html">Tracker</a></div>
+    </nav>
+
+    <div class="container">
+        <h1>📍 Tracker GPS</h1>
+        <div class="controls">
+            <select id="select-race" onchange="updateSessions()"><option>-- Grand Prix --</option></select>
+            <select id="select-session" onchange="chargerPilotes()" disabled><option>-- Séance --</option></select>
+            <select id="select-driver" disabled><option>-- Pilote --</option></select>
+            <button id="btn-load" onclick="lancerTracker()" disabled>LANCER</button>
+        </div>
+
+        <div class="map-container">
+            <canvas id="trackCanvas" width="800" height="600"></canvas>
+        </div>
+    </div>
+
+    <script src="f1data.js"></script>
+    <script>
+        let canvas, ctx, trackData = [], animationId;
+
+        window.onload = () => {
+            canvas = document.getElementById('trackCanvas');
+            ctx = canvas.getContext('2d');
+            const raceSelect = document.getElementById('select-race');
+            const meetings = [...new Set(f1Data.map(item => item.meeting_key))];
+            meetings.forEach(key => {
+                const info = f1Data.find(d => d.meeting_key === key);
+                let opt = document.createElement('option');
+                opt.value = key; opt.text = info.country_name;
+                raceSelect.appendChild(opt);
+            });
+        };
+
+        function updateSessions() {
+            const meetingKey = parseInt(document.getElementById('select-race').value);
+            const sessionSelect = document.getElementById('select-session');
+            sessionSelect.innerHTML = '<option value="">-- Séance --</option>'; sessionSelect.disabled = true;
+            if (!meetingKey) return;
+            const sessions = f1Data.filter(d => d.meeting_key === meetingKey);
+            sessions.forEach(s => {
+                let opt = document.createElement('option'); opt.value = s.session_key; opt.text = s.session_name;
+                sessionSelect.appendChild(opt);
+            });
+            sessionSelect.disabled = false;
+        }
+
+        async function chargerPilotes() {
+            const key = document.getElementById('select-session').value;
+            const drv = document.getElementById('select-driver');
+            const btn = document.getElementById('btn-load');
+            if(!key) { drv.disabled=true; return; }
+            drv.disabled = false; drv.innerHTML = "Chargement...";
+            try {
+                const res = await fetch(`https://api.openf1.org/v1/drivers?session_key=${key}`);
+                const data = await res.json();
+                drv.innerHTML = '<option value="">-- Pilote --</option>';
+                data.sort((a,b)=>a.driver_number - b.driver_number);
+                data.forEach(d => {
+                    let opt = document.createElement('option'); opt.value = d.driver_number; opt.text = `#${d.driver_number} - ${d.name_acronym}`;
+                    drv.appendChild(opt);
+                });
+                drv.onchange = () => btn.disabled = false;
+            } catch(e) { drv.innerHTML = "<option>Erreur API</option>"; }
+        }
+
+        async function lancerTracker() {
+            const key = document.getElementById('select-session').value;
+            const driver = document.getElementById('select-driver').value;
+            const btn = document.getElementById('btn-load');
+            btn.innerText = "Chargement..."; btn.disabled = true;
+            try {
+                const res = await fetch(`https://api.openf1.org/v1/location?session_key=${key}&driver_number=${driver}&n_results=2500`);
+                trackData = await res.json();
+                if(trackData.length < 50) { alert("Pas de données GPS pour cette séance."); btn.innerText = "LANCER"; btn.disabled = false; return; }
+                btn.innerText = "EN COURS";
+                demarrerAnimation();
+            } catch(e) { alert("Erreur API"); btn.disabled = false; }
+        }
+
+        function demarrerAnimation() {
+            let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+            trackData.forEach(p => { if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; });
+            const padding=50, width=canvas.width-padding*2, height=canvas.height-padding*2;
+            const scale=Math.min(width/(maxX-minX), height/(maxY-minY));
+            function toScreen(x, y) {
+                const offsetX=(canvas.width-(maxX-minX)*scale)/2; const offsetY=(canvas.height-(maxY-minY)*scale)/2;
+                return { x: (x-minX)*scale+offsetX, y: canvas.height-((y-minY)*scale+offsetY) };
+            }
+            
+            let index = 0;
+            if(animationId) clearInterval(animationId);
+            animationId = setInterval(() => {
+                if(index >= trackData.length) index = 0;
+                ctx.fillStyle = "#1a1a24"; ctx.fillRect(0,0,canvas.width, canvas.height);
+                ctx.beginPath(); ctx.strokeStyle = "#444"; ctx.lineWidth = 5;
+                trackData.forEach((p,i) => { const pos=toScreen(p.x,p.y); if(i===0)ctx.moveTo(pos.x,pos.y); else ctx.lineTo(pos.x,pos.y); });
+                ctx.stroke();
+                
+                const pt = toScreen(trackData[index].x, trackData[index].y);
+                ctx.beginPath(); ctx.fillStyle = "#e10600"; ctx.arc(pt.x, pt.y, 8, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur=15; ctx.shadowColor="#e10600";
+                index+=5;
+            }, 20);
+        }
+    </script>
+</body>
+</html>
